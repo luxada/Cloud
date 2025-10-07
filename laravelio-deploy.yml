@@ -1,0 +1,19 @@
+---
+- name: Deploy the SQL DB for laravelio
+  hosts: localhost
+  gather_facts: false
+  roles:
+      - app/deploy/sql_deploy
+
+- name: Deploy laravelio
+  hosts: localhost
+  gather_facts: false
+  roles:
+      - app/deploy/laravelio_deploy
+
+- name: Create Dashboard
+  hosts: localhost
+  become: no
+  gather_facts: false
+  roles:
+    - app/monitoring/create

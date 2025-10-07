@@ -1,0 +1,19 @@
+---
+- name: Undeploy laravelio
+  hosts: localhost
+  gather_facts: false
+  roles:
+      - app/undeploy/laravelio_undeploy
+
+- name: Undeploy the SQL DB for laravelio
+  hosts: localhost
+  gather_facts: false
+  roles:
+      - app/undeploy/sql_undeploy
+
+- name: Delete Dashboard
+  hosts: localhost
+  become: no
+  gather_facts: false
+  roles:
+    - app/monitoring/destroy

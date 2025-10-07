@@ -1,0 +1,6 @@
+---
+- name: Benchmark the laravelio website with JMeter
+  hosts: localhost
+  gather_facts: false
+  roles:
+      - app/benchmark
