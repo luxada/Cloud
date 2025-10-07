@@ -1,0 +1,150 @@
+---
+- name: Apply Laravelio Deployment
+  k8s:
+    state: present
+    definition: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: laravelio-deployment
+        namespace: default
+        labels:
+          app: laravelio
+      spec:
+        replicas: 2 
+        selector:
+          matchLabels:
+            app: laravelio
+        strategy:
+          type: RollingUpdate
+        template:
+          metadata:
+            labels:
+              app: laravelio
+          spec:
+            containers:
+            - name: laravelio
+              image: ricardodlc57/laravelio:v2
+              env: # The variables below could be set on a ConfigMap object
+              - name: DB_CONNECTION
+                value: mysql
+              - name: DB_HOST
+                value: mysql-service
+              - name: DB_DATABASE
+                value: laravel
+              - name: seed_database
+                value: "{{ seed_database }}"
+              - name: DB_USERNAME
+                value: "{{ MYSQL_USER}}"
+              - name: DB_PASSWORD
+                value: "{{ MYSQL_PASSWORD }}" # Use Secret object in real usage
+              ports:
+              - containerPort: 8000 
+              resources:
+                requests:
+                  cpu: "500m"
+              
+- name: Wait for Laravelio Pods
+  k8s_info:
+    kind: Pod
+    label_selectors:
+      - app=laravelio
+  register: podsLaravelio
+  until: podsLaravelio.resources | map(attribute='status.phase') | difference(['Running']) | length == 0
+  retries: 60
+  delay: 5
+
+- name: Apply Horizontal Pod Autoscaler (HPA)
+  k8s:
+    state: present
+    definition: |
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: laravelio-hpa
+        namespace: default
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: laravelio-deployment
+        minReplicas: 2
+        maxReplicas: 15
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 70
+
+- name: Wait for HPA to be ready
+  shell:
+    cmd: kubectl get hpa -n default laravelio-hpa -o jsonpath='{.status.conditions[0].status}'
+  register: hpa_status
+  until: hpa_status.stdout == "True"
+  retries: 60
+  delay: 5
+  changed_when: false
+  ignore_errors: true
+
+- name: Reserve Static IP Address
+  gcp_compute_address:
+    name: my-external-ipasscn
+    region: "us-central1"
+    project: "{{ gcp_project }}"
+    auth_kind: "{{ gcp_auth_kind }}"
+    service_account_file: "{{ gcp_cred_file }}"
+    state: present
+  register: reserved_ip
+
+- name: Check if IP Address was Reserved
+  debug:
+    var: reserved_ip
+
+- name: Wait for IP Address Reservation to be Ready
+  wait_for:
+    delay: 5
+    timeout: 5  
+  until: reserved_ip.status == 'RESERVED' or reserved_ip.status == 'IN_USE'
+  retries: 60
+
+- name: Update app_ip in inventory file
+  lineinfile:
+    path: inventory/gcp.yml
+    regexp: '\s*app_ip:.*'
+    line: '  app_ip: {{ reserved_ip.address }}'
+  delegate_to: localhost
+
+- name: Apply Laravelio Service
+  k8s:
+    state: present
+    definition: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: laravelio-service
+        namespace: default
+        labels:
+          app: laravelio
+      spec:
+        sessionAffinity: ClientIP
+        type: LoadBalancer
+        selector:
+          app: laravelio
+        ports:
+        - protocol: TCP
+          port: 8001
+          targetPort: 8000
+        loadBalancerIP: {{ reserved_ip.address }}
+
+- name: Wait for Laravel service to be ready
+  k8s_info:
+    api_version: v1
+    kind: Service
+    name: laravelio-service
+    namespace: default
+  register: service_info
+  until: service_info.resources[0].status.loadBalancer.ingress[0].ip | default('') != ''
+  retries: 60
+  delay: 5

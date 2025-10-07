@@ -1,0 +1,35 @@
+- name: Run JMeter Test
+  command: "./jmeter -n -t ThreadGroup.jmx"
+  args:
+    chdir: "./apache-jmeter-5.5/bin"
+  ignore_errors: yes
+
+- name: Cooldown of 1 minutes for the next workload
+  pause:
+    seconds: 60
+
+- name: Run JMeter Test
+  command: "./jmeter -n -t ThreadGroup100.jmx"
+  args:
+    chdir: "./apache-jmeter-5.5/bin"
+  ignore_errors: yes
+
+- name: Cooldown of 1 minutes for the next workload
+  pause:
+    seconds: 60
+
+- name: Run JMeter Test
+  command: "./jmeter -n -t ThreadGroup1000.jmx"
+  args:
+    chdir: "./apache-jmeter-5.5/bin"
+  ignore_errors: yes
+
+- name: Cooldown of 1 minutes for the next workload
+  pause:
+    seconds: 60
+  
+- name: Run JMeter Test
+  command: "./jmeter -n -t ThreadGroup10000.jmx"
+  args:
+    chdir: "./apache-jmeter-5.5/bin"
+  ignore_errors: yes

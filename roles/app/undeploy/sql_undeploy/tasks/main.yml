@@ -1,0 +1,14 @@
+---
+- name: Delete mysql-service
+  command: kubectl delete service mysql-service
+
+- name: Delete mysql-deployment
+  command: kubectl delete deployment mysql-deployment
+
+- name: Delete PV claim
+  command: kubectl delete pvc mysql-pv-claim
+  when: delete_data | bool
+
+- name: Delete PV claim
+  command: kubectl delete storageclass sql-storage-standard
+  when: delete_data | bool 

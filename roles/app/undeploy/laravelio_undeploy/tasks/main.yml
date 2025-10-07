@@ -1,0 +1,9 @@
+---
+- name: Delete laravelio-service
+  command: kubectl delete service laravelio-service
+
+- name: Delete laravelio-deployment
+  command: kubectl delete deployment laravelio-deployment
+
+- name: Delete laravelio-deployment
+  command: kubectl delete hpa laravelio-hpa
